@@ -15,6 +15,17 @@ needs kernel audit netlink access and `journalctl` needs systemd, neither
 meaningfully available in a container — it still requires the manual steps
 below on a real host.
 
+**Note (2026-07-11):** an earlier version of the script truncated history
+at *both* PAM session open and close (PAM invokes a `session` line at both
+phases) and ran with `euid=0` despite `seteuid` in the PAM line — this
+created a root-owned `.bash_history` at login that then blocked the user
+from writing history for the rest of the session, making check 2/3 pass for
+the wrong reason (nothing was ever written, not because it got cleaned up
+at logout). Found by manually inspecting `.bash_history` *while a session
+was still open*, before logout, rather than only checking the automated
+script's PASS/FAIL output. Fixed by gating on `$PAM_TYPE = close_session`
+and adding a defensive `chown` — see `files/wipe-history-on-logout.sh`.
+
 ## 1. Install
 
 ```bash

@@ -47,14 +47,25 @@ fichiers de configuration.
 
 - **`optional`** : si le script échoue, la session se ferme normalement quand
   même — aucun risque de bloquer une déconnexion ou de verrouiller un compte.
-- **`seteuid`** : le script s'exécute avec les droits de l'utilisateur qui se
-  déconnecte, jamais avec des privilèges root sur les fichiers d'un autre
-  compte.
+- **`seteuid`** : censé faire tourner le script avec les droits de
+  l'utilisateur qui se déconnecte. **Vérifié empiriquement peu fiable** (voir
+  ci-dessous) — le script tourne parfois en root malgré cette option. Ne pas
+  s'y fier comme seule garantie.
+- **Une ligne `session` PAM est invoquée aux deux phases `open_session` ET
+  `close_session`.** Le script **doit** filtrer sur `$PAM_TYPE = close_session`
+  et ignorer `open_session` — sans ce filtre, l'historique est tronqué dès la
+  connexion (avant même que l'utilisateur tape quoi que ce soit), et comme le
+  script tourne alors en root (cf. point précédent), le fichier créé devient
+  root-owned et bloque toute écriture d'historique par l'utilisateur pour le
+  reste de la session. Ce bug a été découvert et corrigé après vérification
+  manuelle en conteneur Docker (voir `docs/manual-verification.md`).
 - Le script (`/usr/local/sbin/wipe-history-on-logout.sh`, root:root, mode
   `750`) résout le `$HOME` du compte via `$PAM_USER` et **tronque**
   `~/.bash_history` (pas de suppression du fichier, pour ne pas perturber des
-  permissions ou une surveillance d'inode existante). Si le `$HOME` n'existe
-  pas ou n'est pas accessible, le script sort silencieusement en succès.
+  permissions ou une surveillance d'inode existante), puis force la
+  propriété (`chown $PAM_USER`) du fichier en filet de sécurité contre le
+  point précédent. Si le `$HOME` n'existe pas ou n'est pas accessible, le
+  script sort silencieusement en succès.
 
 ### Comportement pendant la session
 

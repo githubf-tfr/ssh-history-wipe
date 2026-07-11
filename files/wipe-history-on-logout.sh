@@ -9,10 +9,18 @@ truncate_history() {
 }
 
 main() {
+    # PAM invokes a "session" line at both open and close; without this
+    # check the script also fires at login, before seteuid ever applies
+    # (observed euid=0 there), truncating/creating .bash_history as root
+    # and locking the user out of writing to it for the rest of the session.
+    [ "${PAM_TYPE:-}" = "close_session" ] || return 0
     [ -n "${PAM_USER:-}" ] || return 0
     local home
     home="$(getent passwd "$PAM_USER" | cut -d: -f6)"
     truncate_history "$home"
+    # seteuid isn't reliably dropping privileges to PAM_USER (observed
+    # euid=0 even with it set), so fix ownership explicitly as a fallback.
+    [ -d "$home" ] && chown "$PAM_USER" "$home/.bash_history" 2>/dev/null
     return 0
 }
 
