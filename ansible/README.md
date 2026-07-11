@@ -47,3 +47,15 @@ en test — équivalent des variables d'environnement `SCRIPT_DEST` /
 
 Pas de redémarrage de `sshd` — PAM est relu à chaque nouvelle session, le
 mécanisme est actif dès la prochaine connexion.
+
+## Vérification
+
+```bash
+bash ../tests/docker/run-ansible-docker-verification.sh playbook.yml
+bash ../tests/docker/run-ansible-docker-verification.sh playbook-standalone.yml
+```
+
+Provisionne un conteneur AlmaLinux 8 nu depuis l'hôte via une vraie
+connexion SSH (comme en prod), puis prouve par une vraie session SSH
+interactive que l'historique est nettoyé après déconnexion (root et
+non-root), pour chacun des deux rôles.

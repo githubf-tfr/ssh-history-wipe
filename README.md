@@ -46,12 +46,16 @@ ssh-history-wipe/
 ├── files/
 │   └── wipe-history-on-logout.sh   # script PAM-exec : truncate_history() + main()
 ├── install.sh                      # installeur shell idempotent
-├── ansible/                        # équivalent Ansible d'install.sh
-│   ├── playbook.yml
-│   └── roles/ssh_history_wipe/
+├── ansible/                        # deux rôles Ansible équivalents à install.sh
+│   ├── playbook.yml                 # via le script canonique (files/), pas de copie
+│   ├── playbook-standalone.yml      # rôle autonome, script inline dans la tâche
+│   └── roles/
+│       ├── ssh_history_wipe/
+│       └── ssh_history_wipe_standalone/
 ├── tests/
 │   ├── test_wipe_history_on_logout.sh
 │   ├── test_install.sh
+│   ├── test_ansible_sync.sh        # détecte toute dérive du rôle autonome
 │   └── docker/                     # automatisation des checks réels (sshd/PAM) via Docker
 └── docs/
     └── manual-verification.md      # runbook des checks nécessitant un vrai sshd/PAM
@@ -91,16 +95,26 @@ sudo -E bash install.sh
 ssh root@host 'bash -s' < install.sh
 ```
 
-### Rôle Ansible
+### Rôles Ansible
 
-Équivalent fonctionnel, pour un déploiement par inventaire :
+Deux rôles équivalents fonctionnellement, compromis différent :
 
 ```bash
+# via le script canonique (files/wipe-history-on-logout.sh), pas de copie
 ansible-playbook -i <inventaire> ansible/playbook.yml --ask-become-pass
+
+# rôle autonome (script inline dans la tâche, aucune dépendance externe)
+ansible-playbook -i <inventaire> ansible/playbook-standalone.yml --ask-become-pass
 ```
 
-Voir [`ansible/README.md`](ansible/README.md) pour les variables
-disponibles.
+Le premier lit `files/wipe-history-on-logout.sh` directement à l'exécution
+(source unique, mais le rôle doit rester dans ce dépôt). Le second embarque
+le script dans `tasks/main.yml` (extractible/publiable seul, mais
+`tests/test_ansible_sync.sh` doit être relancé après toute modification du
+script pour détecter une divergence).
+
+Voir [`ansible/README.md`](ansible/README.md) pour le détail et les
+variables disponibles.
 
 ## Tests
 
@@ -132,6 +146,20 @@ Ne couvre **pas** la non-régression audit/logs : `auditd` a besoin d'un
 accès au netlink d'audit du noyau et `journalctl` a besoin de systemd,
 ni l'un ni l'autre n'étant significativement disponibles en conteneur.
 
+### Vérification des rôles Ansible via Docker
+
+```bash
+bash tests/docker/run-ansible-docker-verification.sh playbook.yml
+bash tests/docker/run-ansible-docker-verification.sh playbook-standalone.yml
+```
+
+Provisionne un conteneur AlmaLinux 8 **nu** (rien de préinstallé) depuis
+l'hôte, via une vraie connexion SSH, avec le rôle Ansible demandé — comme
+en production, pas de mécanisme déjà présent dans l'image. Vérifie les
+artefacts, la ré-application idempotente (`changed=0`), et fait une vraie
+session SSH interactive pour prouver que l'historique est absent avant
+connexion et nettoyé après déconnexion normale (compte non-root et root).
+
 ### Runbook manuel (checks nécessitant un vrai host)
 
 [`docs/manual-verification.md`](docs/manual-verification.md) — couvre les
@@ -143,7 +171,7 @@ audit/logs notamment), en complément des checks automatisés ci-dessus.
 - AlmaLinux 8+ uniquement, bash uniquement.
 - Aucune altération des logs/audit centralisés.
 - Ne bloque/retarde jamais une fermeture de session SSH.
-- `install.sh` et le rôle Ansible restent idempotents.
+- `install.sh` et les deux rôles Ansible restent idempotents.
 
 ## Hors périmètre
 
