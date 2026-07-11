@@ -4,6 +4,17 @@ Run these checks on a real AlmaLinux 8+ host after running `install.sh` as
 root (see spec §4.2). These cover spec §6 items that need a live sshd/PAM
 stack and cannot be exercised by the unit tests in `tests/`.
 
+**Checks 1-6 below are automated in Docker** — run
+`bash tests/docker/run-docker-verification.sh` (requires only a local Docker
+daemon, no real host/VM). It builds an AlmaLinux 8 image, runs `install.sh`,
+and drives real SSH sessions against it to verify install artifacts, cleanup
+on logout (root and non-root), non-blocking behavior on script failure,
+`install.sh` idempotence, and cleanup on an abrupt/frozen disconnect.
+**Check 7 (audit/log non-regression) is not covered by Docker** — `auditd`
+needs kernel audit netlink access and `journalctl` needs systemd, neither
+meaningfully available in a container — it still requires the manual steps
+below on a real host.
+
 ## 1. Install
 
 ```bash
