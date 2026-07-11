@@ -1,5 +1,5 @@
 ---
-- name: Deploy ssh-history-wipe
+- name: Deploy ssh-history-wipe (references files/wipe-history-on-logout.sh directly)
   hosts: all
   become: true
   roles:

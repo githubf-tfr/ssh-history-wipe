@@ -1,0 +1,4 @@
+---
+# Mirrors install.sh's SCRIPT_DEST / PAM_SSHD_FILE overrides (spec §4.2).
+ssh_history_wipe_script_dest: /usr/local/sbin/wipe-history-on-logout.sh
+ssh_history_wipe_pam_sshd_file: /etc/pam.d/sshd

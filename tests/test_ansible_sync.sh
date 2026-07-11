@@ -1,13 +1,17 @@
 #!/bin/bash
-# The Ansible role embeds the cleanup script's source directly in
-# tasks/main.yml (content: |) rather than copying an external file, so
-# there's no separate asset to keep in sync automatically - this test
-# extracts that inline block and diffs it against the canonical script to
-# catch the two copies drifting apart silently.
+# The standalone role (roles/ssh_history_wipe_standalone) embeds the cleanup
+# script's source directly in tasks/main.yml (content: |) so it has no
+# external file dependency - but that means it can drift silently from
+# files/wipe-history-on-logout.sh. This test extracts that inline block and
+# diffs it against the canonical script to catch that.
+#
+# The other role (roles/ssh_history_wipe) reads files/wipe-history-on-logout.sh
+# directly via `src:` at apply time, so there's nothing to drift there - no
+# equivalent check needed for it.
 set -u
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 canonical="$here/../files/wipe-history-on-logout.sh"
-tasks_file="$here/../ansible/roles/ssh_history_wipe/tasks/main.yml"
+tasks_file="$here/../ansible/roles/ssh_history_wipe_standalone/tasks/main.yml"
 fail=0
 
 run_test() {
@@ -21,7 +25,7 @@ run_test() {
     fi
 }
 
-test_ansible_inline_script_matches_canonical() {
+test_standalone_inline_script_matches_canonical() {
     local extracted
     extracted="$(mktemp)"
     python3 - "$tasks_file" > "$extracted" <<'PYEOF'
@@ -43,7 +47,7 @@ PYEOF
     return $result
 }
 
-run_test "ansible role's inline script content matches files/wipe-history-on-logout.sh" \
-    test_ansible_inline_script_matches_canonical
+run_test "standalone role's inline script content matches files/wipe-history-on-logout.sh" \
+    test_standalone_inline_script_matches_canonical
 
 exit $fail

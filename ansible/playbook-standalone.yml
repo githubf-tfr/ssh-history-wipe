@@ -1,0 +1,6 @@
+---
+- name: Deploy ssh-history-wipe (standalone role, no external file dependency)
+  hosts: all
+  become: true
+  roles:
+    - ssh_history_wipe_standalone

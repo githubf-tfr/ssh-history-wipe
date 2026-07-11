@@ -1,25 +1,38 @@
-# ssh-history-wipe — version Ansible
+# ssh-history-wipe — versions Ansible
 
 Équivalent Ansible d'`install.sh` (voir `../spec.md`). Même
 comportement, mêmes cibles : dépose le script de nettoyage avec les droits
 `root:root` mode `750`, ajoute la ligne `pam_exec` dans le PAM stack de
 `sshd` uniquement si elle n'y est pas déjà (idempotent via `lineinfile`).
 
-Le rôle est **autonome** : le contenu du script est écrit directement dans
-`roles/ssh_history_wipe/tasks/main.yml` (`copy: content: |`), pas copié
-depuis un fichier `.sh` externe ni un symlink. En contrepartie, ce contenu
-inline peut diverger silencieusement de `files/wipe-history-on-logout.sh` à
-la racine (utilisé par `install.sh`) — `tests/test_ansible_sync.sh` extrait
-ce bloc et échoue s'il n'est plus identique : à relancer après toute
-modification de l'un des deux.
+Deux rôles au choix, même comportement final, compromis différent :
 
-## Usage
+## `ssh_history_wipe` — via le script source (`playbook.yml`)
 
 ```bash
 ansible-playbook -i <inventaire> playbook.yml --ask-become-pass
 ```
 
-## Variables (`roles/ssh_history_wipe/defaults/main.yml`)
+La tâche `copy` référence `files/wipe-history-on-logout.sh` directement
+(`src: "{{ playbook_dir }}/../files/wipe-history-on-logout.sh"`) — une seule
+source, partagée avec `install.sh`, jamais de contenu dupliqué. Nécessite
+que le rôle reste utilisé depuis ce dépôt (pas extractible tout seul).
+
+## `ssh_history_wipe_standalone` — autonome (`playbook-standalone.yml`)
+
+```bash
+ansible-playbook -i <inventaire> playbook-standalone.yml --ask-become-pass
+```
+
+Le contenu du script est écrit directement dans
+`roles/ssh_history_wipe_standalone/tasks/main.yml` (`copy: content: |`) —
+aucune dépendance à un fichier externe, le rôle est extractible/publiable
+seul. En contrepartie, ce contenu inline peut diverger silencieusement de
+`files/wipe-history-on-logout.sh` — `tests/test_ansible_sync.sh` extrait ce
+bloc et échoue s'il n'est plus identique : à relancer après toute
+modification de l'un des deux.
+
+## Variables (`defaults/main.yml` de chaque rôle)
 
 | Variable                             | Défaut                                   |
 | ------------------------------------- | ----------------------------------------- |
