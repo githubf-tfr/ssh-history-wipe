@@ -1,0 +1,15 @@
+---
+- name: Deploy history cleanup script
+  ansible.builtin.copy:
+    src: wipe-history-on-logout.sh
+    dest: "{{ ssh_history_wipe_script_dest }}"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Ensure pam_exec session-close line is present in sshd PAM stack
+  ansible.builtin.lineinfile:
+    path: "{{ ssh_history_wipe_pam_sshd_file }}"
+    line: "session optional pam_exec.so seteuid {{ ssh_history_wipe_script_dest }}"
+    insertafter: eof
+    state: present

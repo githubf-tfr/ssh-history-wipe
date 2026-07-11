@@ -1,0 +1,1 @@
+../../../../files/wipe-history-on-logout.sh

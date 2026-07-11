@@ -1,0 +1,6 @@
+---
+- name: Deploy ssh-history-wipe
+  hosts: all
+  become: true
+  roles:
+    - ssh_history_wipe
