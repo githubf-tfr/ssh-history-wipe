@@ -2,29 +2,51 @@
 set -u
 
 truncate_history() {
-    local home="$1"
+    local home="$1" hist="$1/.bash_history"
     [ -d "$home" ] || return 0
-    : > "$home/.bash_history" 2>/dev/null
+    # Only clean a regular file that is not a symlink. Best-effort
+    # off-target guard, NOT the security boundary: the boundary is the
+    # privilege drop done in main() before any file is opened. Even if
+    # this guard were raced, the worst case is truncating a file the
+    # account could already write to itself.
+    [ -f "$hist" ] && [ ! -L "$hist" ] || return 0
+    : > "$hist" 2>/dev/null
     return 0
 }
 
 main() {
     # PAM invokes a "session" line at both open and close; without this
-    # check the script also fires at login, before seteuid ever applies
-    # (observed euid=0 there), truncating/creating .bash_history as root
-    # and locking the user out of writing to it for the rest of the session.
+    # check the script also fires at login, truncating/creating
+    # .bash_history as root and locking the user out of writing to it
+    # for the rest of the session.
     [ "${PAM_TYPE:-}" = "close_session" ] || return 0
     [ -n "${PAM_USER:-}" ] || return 0
-    local home
-    home="$(getent passwd "$PAM_USER" | cut -d: -f6)"
-    truncate_history "$home"
-    # seteuid isn't reliably dropping privileges to PAM_USER (observed
-    # euid=0 even with it set), so fix ownership explicitly as a fallback.
-    [ -d "$home" ] && chown "$PAM_USER" "$home/.bash_history" 2>/dev/null
+    local entry uid gid home
+    entry="$(getent passwd "$PAM_USER" 2>/dev/null)"
+    [ -n "$entry" ] || return 0
+    IFS=: read -r _ _ uid gid _ home _ <<< "$entry"
+    [ -n "$uid" ] || return 0
+    # seteuid on the PAM line does not reliably drop privileges (euid=0
+    # observed even with it set). The drop happens HERE, explicitly,
+    # before any file is opened - this is the security boundary. timeout
+    # bounds a booby-trapped target that would block on open (e.g. a
+    # FIFO with no reader) so a logout is never delayed.
+    if [ "$EUID" = "$uid" ]; then
+        # Drop already effective, or root closing its own session.
+        timeout 5 "$0" --wipe "$home" >/dev/null 2>&1
+    elif [ "$EUID" = "0" ] && [ "$uid" != "0" ]; then
+        timeout 5 setpriv --reuid "$uid" --regid "$gid" --init-groups -- \
+            "$0" --wipe "$home" >/dev/null 2>&1
+    fi
+    # euid neither 0 nor the target uid: abnormal state, do nothing.
     return 0
 }
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    if [ "${1:-}" = "--wipe" ]; then
+        truncate_history "${2:-}"
+        exit 0
+    fi
     main
     exit 0
 fi
