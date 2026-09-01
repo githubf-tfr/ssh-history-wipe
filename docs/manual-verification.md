@@ -65,15 +65,29 @@ exit
 Then from another session:
 
 ```bash
-ssh admin@host "sudo cat /home/testuser/.bash_history | wc -l"
+ssh admin@host "sudo stat -c '%n %s %U %F' /home/testuser/.bash_history"
 ```
 
-Expected: `0`.
+Expected: `/home/testuser/.bash_history 0 testuser regular file` — file exists (empty, size 0), belongs to the account (no ownership transfer), and is a regular file (not deleted, not symlinked).
 
 ## 3. Cleanup on normal logout (root account)
 
-Repeat step 2 logging in as `root` instead of `testuser`, checking
-`/root/.bash_history` afterward. Expected: `0` lines.
+Repeat step 2 logging in as `root` instead of `testuser`:
+
+```bash
+ssh root@host
+echo some-secret-command
+history -a   # force write to disk before disconnecting
+exit
+```
+
+Then from another session:
+
+```bash
+ssh admin@host "sudo stat -c '%n %s %U %F' /root/.bash_history"
+```
+
+Expected: `/root/.bash_history 0 root regular file` — file exists (empty, size 0), belongs to root (no ownership confusion), and is a regular file.
 
 ## 4. Non-blocking on script failure
 
