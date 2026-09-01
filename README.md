@@ -26,8 +26,10 @@ par un utilisateur non-root qui éditerait son `~/.bashrc`.
 
 - `optional` : un échec du script ne bloque/retarde jamais une
   déconnexion SSH ni ne verrouille un compte.
-- `seteuid` : le script tourne avec les droits du compte qui se
-  déconnecte.
+- `seteuid` : conservé sur la ligne PAM mais non fiable (euid=0 observé) —
+  le script n'en dépend plus : il abaisse lui-même ses privilèges
+  (`setpriv`) vers le compte qui se déconnecte avant toute écriture, et
+  tronque sous cette identité.
 - Le script **tronque** `~/.bash_history` (jamais de suppression du
   fichier).
 
@@ -36,8 +38,13 @@ n'a lieu qu'au moment où `sshd` détecte la connexion morte (timeouts
 `ClientAliveInterval`) — délai possible, mais jamais manqué. C'est un
 comportement accepté, pas un défaut à corriger.
 
-Détail complet du design : [`spec.md`](spec.md). Plan d'implémentation
-d'origine : [`plan.md`](plan.md).
+Détail complet du design de sécurité :
+[`docs/superpowers/specs/2026-09-01-securite-du-mecanisme.md`](docs/superpowers/specs/2026-09-01-securite-du-mecanisme.md).
+
+⚠️ [`spec.md`](spec.md) et [`plan.md`](plan.md) à la racine sont les artefacts **d'origine**
+du 2026-07-11, conservés pour l'historique : ils décrivent le modèle de privilèges d'avant le
+correctif du 2026-09-01 (mode `750`, `seteuid` supposé abaisser les droits) et ne font plus
+autorité.
 
 ## Structure du dépôt
 

@@ -74,7 +74,7 @@ test_install_artifacts() {
     docker exec "$container" test -f /usr/local/sbin/wipe-history-on-logout.sh || return 1
     local mode
     mode="$(docker exec "$container" stat -c '%a' /usr/local/sbin/wipe-history-on-logout.sh)"
-    [ "$mode" = "750" ] || return 1
+    [ "$mode" = "755" ] || return 1
     docker exec "$container" grep -qF \
         "session optional pam_exec.so seteuid /usr/local/sbin/wipe-history-on-logout.sh" \
         /etc/pam.d/sshd
@@ -99,7 +99,7 @@ test_nonblocking_on_failure() {
     local out status
     out="$(ssh_key testuser@127.0.0.1 'echo hi' 2>/dev/null)"
     status=$?
-    docker exec "$container" chmod 750 /usr/local/sbin/wipe-history-on-logout.sh
+    docker exec "$container" chmod 755 /usr/local/sbin/wipe-history-on-logout.sh
     [ "$status" -eq 0 ] && [ "$out" = "hi" ]
 }
 
@@ -132,7 +132,7 @@ test_abrupt_disconnect() {
     [ "$lines" = "0" ]
 }
 
-run_test "install artifacts present (script mode 750, PAM line)" test_install_artifacts
+run_test "install artifacts present (script mode 755, PAM line)" test_install_artifacts
 run_test "cleanup on normal logout (non-root)" test_cleanup_nonroot
 run_test "cleanup on normal logout (root)" test_cleanup_root
 run_test "non-blocking on script failure" test_nonblocking_on_failure

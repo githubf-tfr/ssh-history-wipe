@@ -23,8 +23,22 @@ from writing history for the rest of the session, making check 2/3 pass for
 the wrong reason (nothing was ever written, not because it got cleaned up
 at logout). Found by manually inspecting `.bash_history` *while a session
 was still open*, before logout, rather than only checking the automated
-script's PASS/FAIL output. Fixed by gating on `$PAM_TYPE = close_session`
-and adding a defensive `chown` — see `files/wipe-history-on-logout.sh`.
+script's PASS/FAIL output. Fixed by gating on `$PAM_TYPE = close_session`,
+initially completed by a defensive `chown` — since removed, see the
+2026-09-01 note below.
+
+**Note (2026-09-01):** the defensive `chown` mentioned above has been
+removed: running with euid=0 (the PAM `seteuid` option does not reliably
+drop privileges), it followed a symlinked `~/.bash_history` — truncating
+then handing ownership of any root-owned file to the attacker (privilege
+escalation). The script now drops privileges itself, before any file is
+opened: it re-executes as `<script> --wipe <home>` under the target
+account's identity (`setpriv --reuid --regid --init-groups`), bounded by
+`timeout 5`. The installed mode is `0755` so the re-exec still works after
+the drop (a stricter mode would make the mechanism silently inoperative).
+The PAM line is unchanged. Checks 8-10 below prove the fix; they are not
+covered by the Docker harness — this manual runbook is their normative
+level.
 
 ## 1. Install
 
@@ -35,7 +49,7 @@ sudo bash install.sh
 Expected: no output, exit code 0. Verify:
 
 ```bash
-ls -l /usr/local/sbin/wipe-history-on-logout.sh   # root root, -rwxr-x---
+ls -l /usr/local/sbin/wipe-history-on-logout.sh   # root root, -rwxr-xr-x
 tail -1 /etc/pam.d/sshd                            # session optional pam_exec.so seteuid /usr/local/sbin/wipe-history-on-logout.sh
 ```
 
@@ -51,15 +65,29 @@ exit
 Then from another session:
 
 ```bash
-ssh admin@host "sudo cat /home/testuser/.bash_history | wc -l"
+ssh admin@host "sudo stat -c '%n %s %U %F' /home/testuser/.bash_history"
 ```
 
-Expected: `0`.
+Expected: `/home/testuser/.bash_history 0 testuser regular file` — file exists (empty, size 0), belongs to the account (no ownership transfer), and is a regular file (not deleted, not symlinked).
 
 ## 3. Cleanup on normal logout (root account)
 
-Repeat step 2 logging in as `root` instead of `testuser`, checking
-`/root/.bash_history` afterward. Expected: `0` lines.
+Repeat step 2 logging in as `root` instead of `testuser`:
+
+```bash
+ssh root@host
+echo some-secret-command
+history -a   # force write to disk before disconnecting
+exit
+```
+
+Then from another session:
+
+```bash
+ssh admin@host "sudo stat -c '%n %s %U %F' /root/.bash_history"
+```
+
+Expected: `/root/.bash_history 0 root regular file` — file exists (empty, size 0), belongs to root (no ownership confusion), and is a regular file.
 
 ## 4. Non-blocking on script failure
 
@@ -75,7 +103,7 @@ Expected: the SSH session exits normally (no hang, no error surfaced to the
 user). Restore permissions afterward:
 
 ```bash
-sudo chmod 750 /usr/local/sbin/wipe-history-on-logout.sh
+sudo chmod 755 /usr/local/sbin/wipe-history-on-logout.sh
 ```
 
 ## 5. Idempotence of install.sh
@@ -119,3 +147,69 @@ sudo journalctl -u sshd --since "-10min" | wc -l
 
 Expected: both keep growing/recording normally across the test session —
 neither is emptied or altered by the cleanup mechanism.
+
+## 8. Symlink attack is neutralized (privilege escalation fix)
+
+As admin, create a root-owned witness file with known content:
+
+```bash
+ssh admin@host "echo witness-content | sudo tee /root/wipe-test-witness >/dev/null"
+```
+
+From the attacker's (non-root) account, point the history at it, then log
+out:
+
+```bash
+ssh testuser@host
+ln -sf /root/wipe-test-witness ~/.bash_history
+exit
+```
+
+Then, as admin:
+
+```bash
+ssh admin@host "sudo stat -c '%s %U' /root/wipe-test-witness; sudo cat /root/wipe-test-witness; sudo ls -l /home/testuser/.bash_history"
+```
+
+Expected: the witness file still contains `witness-content` (16 bytes),
+its owner is still `root` (no truncation, no ownership transfer), and
+`/home/testuser/.bash_history` is still a symlink pointing at it. Clean up
+afterwards (`sudo rm /root/wipe-test-witness`, restore the account's
+`~/.bash_history` by removing the symlink).
+
+## 9. FIFO in place of the history does not delay logout
+
+From a non-root account, replace the history with a FIFO, then log out
+while timing the disconnect:
+
+```bash
+ssh testuser@host
+rm -f ~/.bash_history && mkfifo ~/.bash_history
+exit   # measure: the disconnect must complete without noticeable delay
+```
+
+Expected: the logout completes normally — any extra delay stays under the
+script's 5-second `timeout` bound. Then, as admin:
+
+```bash
+ssh admin@host "sudo stat -c '%F' /home/testuser/.bash_history"
+```
+
+Expected: `fifo` — the FIFO is left in place, nothing was written to it.
+Clean up by removing the FIFO afterwards.
+
+## 10. Ansible replay converges an old 0750 deployment
+
+On a host still carrying the previous deployment (script mode `750`, old
+body):
+
+```bash
+ssh admin@host "stat -c '%a' /usr/local/sbin/wipe-history-on-logout.sh"   # 750 before
+ansible-playbook -i <inventory> ansible/playbook.yml --ask-become-pass    # or playbook-standalone.yml
+ssh admin@host "stat -c '%a' /usr/local/sbin/wipe-history-on-logout.sh; sudo grep -c setpriv /usr/local/sbin/wipe-history-on-logout.sh; grep -c wipe-history-on-logout.sh /etc/pam.d/sshd"
+```
+
+Expected: mode `755`, `setpriv` present in the deployed body (new script),
+and exactly `1` PAM line — converged by a single replay, no manual step.
+The same property holds for `install.sh` replayed on such a host (covered
+automatically by `tests/test_install.sh`).

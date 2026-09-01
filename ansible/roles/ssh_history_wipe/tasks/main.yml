@@ -5,7 +5,7 @@
     dest: "{{ ssh_history_wipe_script_dest }}"
     owner: root
     group: root
-    mode: "0750"
+    mode: "0755"
 
 - name: Ensure pam_exec session-close line is present in sshd PAM stack
   ansible.builtin.lineinfile:

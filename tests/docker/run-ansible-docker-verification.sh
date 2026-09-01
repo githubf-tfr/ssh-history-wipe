@@ -90,7 +90,7 @@ test_install_artifacts() {
     docker exec "$container" test -f /usr/local/sbin/wipe-history-on-logout.sh || return 1
     local mode
     mode="$(docker exec "$container" stat -c '%a' /usr/local/sbin/wipe-history-on-logout.sh)"
-    [ "$mode" = "750" ] || return 1
+    [ "$mode" = "755" ] || return 1
     docker exec "$container" grep -qF \
         "session optional pam_exec.so seteuid /usr/local/sbin/wipe-history-on-logout.sh" \
         /etc/pam.d/sshd
@@ -127,7 +127,7 @@ test_history_lifecycle_root() {
     [ "$lines" = "0" ]
 }
 
-run_test "install artifacts present (script mode 750, PAM line)" test_install_artifacts
+run_test "install artifacts present (script mode 755, PAM line)" test_install_artifacts
 run_test "playbook re-apply is idempotent (changed=0)" test_idempotent_reapply
 run_test "history absent then cleaned up after real logout (non-root)" test_history_lifecycle_nonroot
 run_test "history cleaned up after real logout (root)" test_history_lifecycle_root

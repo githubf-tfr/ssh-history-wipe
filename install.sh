@@ -8,7 +8,7 @@ PAM_SSHD_FILE="${PAM_SSHD_FILE:-/etc/pam.d/sshd}"
 PAM_LINE="session optional pam_exec.so seteuid ${SCRIPT_DEST}"
 
 cp "$SCRIPT_SRC" "$SCRIPT_DEST"
-chmod 750 "$SCRIPT_DEST"
+chmod 755 "$SCRIPT_DEST"
 chown root:root "$SCRIPT_DEST" 2>/dev/null || true
 
 if ! grep -qF "$PAM_LINE" "$PAM_SSHD_FILE" 2>/dev/null; then
