@@ -26,8 +26,10 @@ par un utilisateur non-root qui éditerait son `~/.bashrc`.
 
 - `optional` : un échec du script ne bloque/retarde jamais une
   déconnexion SSH ni ne verrouille un compte.
-- `seteuid` : le script tourne avec les droits du compte qui se
-  déconnecte.
+- `seteuid` : conservé sur la ligne PAM mais non fiable (euid=0 observé) —
+  le script n'en dépend plus : il abaisse lui-même ses privilèges
+  (`setpriv`) vers le compte qui se déconnecte avant toute écriture, et
+  tronque sous cette identité.
 - Le script **tronque** `~/.bash_history` (jamais de suppression du
   fichier).
 

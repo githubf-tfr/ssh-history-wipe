@@ -193,7 +193,7 @@ Chaque assertion porte sur l'état observable du système de fichiers.
    fichier : il doit échouer si l'un des trois se casse — il aurait détecté un mode
    rendant le chemin abaissé inexécutable (mécanisme silencieusement inopérant). La
    branche d'abaissement effectif depuis euid=0 lui échappe (elle exige root) : elle
-   est couverte par le critère 11.
+   est couverte par le critère 13.
 3. **[auto]** `truncate_history` sur un home dont `.bash_history` est une FIFO : la
    FIFO est toujours en place, toujours une FIFO, et l'appel rend la main (pas de
    blocage).

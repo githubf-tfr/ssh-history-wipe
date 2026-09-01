@@ -2,7 +2,7 @@
 
 Équivalent Ansible d'`install.sh` (voir `../spec.md`). Même
 comportement, mêmes cibles : dépose le script de nettoyage avec les droits
-`root:root` mode `750`, ajoute la ligne `pam_exec` dans le PAM stack de
+`root:root` mode `755`, ajoute la ligne `pam_exec` dans le PAM stack de
 `sshd` uniquement si elle n'y est pas déjà (idempotent via `lineinfile`).
 
 Deux rôles au choix, même comportement final, compromis différent :
